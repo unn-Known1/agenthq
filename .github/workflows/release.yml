@@ -23,13 +23,10 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
-            artifact_name: 'agenthq'
           - os: windows-latest
             platform: win
-            artifact_name: 'AgentHQ'
           - os: macos-latest
             platform: mac
-            artifact_name: 'AgentHQ'
 
     steps:
       - name: Checkout code
@@ -40,25 +37,23 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install pnpm
         run: npm install -g pnpm
 
-      - name: Get frontend dependencies
-        working-directory: ./frontend
+      - name: Install dependencies
         run: pnpm install --prefer-offline
 
       - name: Build frontend
-        working-directory: ./frontend
         run: pnpm run build
 
       - name: Install Electron dependencies
-        working-directory: ./frontend/electron
+        working-directory: ./electron
         run: npm install
 
       - name: Build Electron app - ${{ matrix.platform }}
-        working-directory: ./frontend/electron
+        working-directory: ./electron
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -71,31 +66,8 @@ jobs:
           fi
 
       - name: Upload release artifacts
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./frontend/electron/release/${{ matrix.artifact_name }}*
-          asset_name: ${{ matrix.artifact_name }}-${{ github.ref_name }}-${{ matrix.platform }}-${{ runner.os }}
-          asset_content_type: application/octet-stream
-
-  create_release:
-    needs: release
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
+          name: ${{ matrix.platform }}-artifacts
+          path: electron/release
+          retention-days: 30
