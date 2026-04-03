@@ -7,18 +7,17 @@ import TicketModal from '../components/TicketModal';
 
 export default function Dashboard() {
   const {
-    stats, agents, tickets, activities,
-    fetchStats, fetchAgents, fetchTickets, fetchActivities,
+    agents, tickets, activities,
+    fetchAgents, fetchTickets, fetchActivities,
     showAgentModal, showTicketModal,
     setShowAgentModal, setShowTicketModal,
   } = useStore();
 
   useEffect(() => {
-    fetchStats();
     fetchAgents();
     fetchTickets();
     fetchActivities();
-  }, [fetchStats, fetchAgents, fetchTickets, fetchActivities]);
+  }, [fetchAgents, fetchTickets, fetchActivities]);
 
   const activeAgents = agents.filter((a) => a.status === 'active');
   const openTickets = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress');
