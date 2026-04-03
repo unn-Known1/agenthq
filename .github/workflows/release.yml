@@ -36,14 +36,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install pnpm
         run: npm install -g pnpm
 
-      - name: Install dependencies
-        run: pnpm install --prefer-offline
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build frontend
         run: pnpm run build
