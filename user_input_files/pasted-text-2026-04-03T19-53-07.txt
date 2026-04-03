@@ -1,0 +1,196 @@
+localhost:3001/api/company:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+
+localhost:3001/api/stats:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+ Failed to fetch stats: 
+fetchStats @ index-D4DdALLE.js:274
+localhost:3001/api/agents:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+ Failed to fetch agents: 
+fetchAgents @ index-D4DdALLE.js:274
+localhost:3001/api/activities?limit=50:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+ Failed to fetch activities: 
+fetchActivities @ index-D4DdALLE.js:274
+localhost:3001/api/tickets:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch tickets: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:4350)
+    at fetchTickets (index-D4DdALLE.js:274:6903)
+    at index-D4DdALLE.js:274:38303
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchTickets @ index-D4DdALLE.js:274
+/favicon.ico:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+localhost:3001/api/agents:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch agents: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:3775)
+    at fetchAgents (index-D4DdALLE.js:274:6163)
+    at index-D4DdALLE.js:278:57985
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchAgents @ index-D4DdALLE.js:274
+localhost:3001/api/conversations:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:278 Failed to fetch conversations: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:4658)
+    at B (index-D4DdALLE.js:278:68710)
+    at index-D4DdALLE.js:278:68657
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+B @ index-D4DdALLE.js:278
+localhost:3001/api/agents:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch agents: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:3775)
+    at fetchAgents (index-D4DdALLE.js:274:6163)
+    at index-D4DdALLE.js:278:68661
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchAgents @ index-D4DdALLE.js:274
+localhost:3001/api/logs:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:278 Failed to fetch logs: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:5181)
+    at j (index-D4DdALLE.js:278:77213)
+    at index-D4DdALLE.js:278:77165
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+j @ index-D4DdALLE.js:278
+localhost:3001/api/conversations:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:278 Failed to fetch conversations: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:4658)
+    at B (index-D4DdALLE.js:278:68710)
+    at index-D4DdALLE.js:278:68657
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+B @ index-D4DdALLE.js:278
+localhost:3001/api/agents:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch agents: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:3775)
+    at fetchAgents (index-D4DdALLE.js:274:6163)
+    at index-D4DdALLE.js:278:68661
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchAgents @ index-D4DdALLE.js:274
+localhost:3001/api/stats:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch stats: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.get (index-D4DdALLE.js:274:5839)
+    at fetchStats (index-D4DdALLE.js:274:7632)
+    at index-D4DdALLE.js:274:38291
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchStats @ index-D4DdALLE.js:274
+localhost:3001/api/agents:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch agents: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:3775)
+    at fetchAgents (index-D4DdALLE.js:274:6163)
+    at index-D4DdALLE.js:274:38295
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchAgents @ index-D4DdALLE.js:274
+localhost:3001/api/activities?limit=50:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch activities: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:5787)
+    at fetchActivities (index-D4DdALLE.js:274:7492)
+    at index-D4DdALLE.js:274:38299
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchActivities @ index-D4DdALLE.js:274
+localhost:3001/api/tickets:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch tickets: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:4350)
+    at fetchTickets (index-D4DdALLE.js:274:6903)
+    at index-D4DdALLE.js:274:38303
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchTickets @ index-D4DdALLE.js:274
+localhost:3001/api/stats:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch stats: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.get (index-D4DdALLE.js:274:5839)
+    at fetchStats (index-D4DdALLE.js:274:7632)
+    at index-D4DdALLE.js:274:38291
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchStats @ index-D4DdALLE.js:274
+localhost:3001/api/agents:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch agents: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:3775)
+    at fetchAgents (index-D4DdALLE.js:274:6163)
+    at index-D4DdALLE.js:274:38295
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchAgents @ index-D4DdALLE.js:274
+localhost:3001/api/activities?limit=50:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch activities: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:5787)
+    at fetchActivities (index-D4DdALLE.js:274:7492)
+    at index-D4DdALLE.js:274:38299
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchActivities @ index-D4DdALLE.js:274
+localhost:3001/api/tickets:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+index-D4DdALLE.js:274 Failed to fetch tickets: TypeError: Failed to fetch
+    at pe (index-D4DdALLE.js:274:3591)
+    at Object.getAll (index-D4DdALLE.js:274:4350)
+    at fetchTickets (index-D4DdALLE.js:274:6903)
+    at index-D4DdALLE.js:274:38303
+    at Lo (index-D4DdALLE.js:40:24421)
+    at as (index-D4DdALLE.js:40:42709)
+    at index-D4DdALLE.js:40:40987
+    at O (index-D4DdALLE.js:25:1599)
+    at MessagePort.W (index-D4DdALLE.js:25:1966)
+fetchTickets @ index-D4DdALLE.js:274
+localhost:3001/api/agents:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+localhost:3001/api/agents:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+localhost:3001/api/tickets:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+localhost:3001/api/tickets:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
