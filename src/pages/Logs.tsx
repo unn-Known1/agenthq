@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollText, Filter, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useStore } from '../stores/appStore';
 
 const levelColors = {
