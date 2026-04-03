@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bot, UserPlus, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useStore } from '../stores/appStore';
-import { Agent } from '../lib/api';
 
 interface AgentModalProps {
   onClose: () => void;
@@ -83,7 +82,7 @@ export default function AgentModal({ onClose }: AgentModalProps) {
         toolPermissions: canCreateAgents ? ['read_file', 'write_file'] : [],
       });
       onClose();
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to create agent');
     } finally {
       setLoading(false);
