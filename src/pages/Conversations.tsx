@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Send, Plus } from 'lucide-react';
+import { MessageSquare, Send } from 'lucide-react';
 import { useStore } from '../stores/appStore';
 
 export default function Conversations() {
   const {
     conversations, messages, agents, fetchConversations, fetchMessages,
-    sendMessage, createConversation, selectedConversation, setSelectedConversation,
+    sendMessage, selectedConversation, setSelectedConversation,
   } = useStore();
   const [newMessage, setNewMessage] = useState('');
 
