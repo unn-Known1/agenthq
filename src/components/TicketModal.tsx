@@ -15,7 +15,7 @@ export default function TicketModal({ onClose }: TicketModalProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    priority: 'medium' as string,
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
     assigneeId: '' as string,
   });
 
@@ -42,7 +42,7 @@ export default function TicketModal({ onClose }: TicketModalProps) {
         tags: [],
       });
       onClose();
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to create ticket');
     } finally {
       setLoading(false);
@@ -116,7 +116,7 @@ export default function TicketModal({ onClose }: TicketModalProps) {
                 <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Priority</label>
                 <select
                   value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
                   className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="low">Low</option>
