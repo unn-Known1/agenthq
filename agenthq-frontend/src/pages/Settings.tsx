@@ -11,6 +11,7 @@ import {
   Palette,
   Save,
   RefreshCw,
+  Bot,
 } from 'lucide-react';
 import { useStore } from '../stores/appStore';
 

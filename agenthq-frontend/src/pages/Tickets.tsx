@@ -11,8 +11,6 @@ import {
 } from '@dnd-kit/core';
 import {
   Plus,
-  Ticket,
-  Filter,
   ChevronDown,
   AlertCircle,
   CheckCircle2,
