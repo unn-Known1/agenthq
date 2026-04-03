@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Clock, Bot, Ticket, DollarSign } from 'lucide-react';
+import { Bot, Ticket, DollarSign } from 'lucide-react';
 import { useStore } from '../stores/appStore';
 
 export default function History() {
