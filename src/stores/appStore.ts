@@ -31,6 +31,8 @@ interface DashboardStats {
   totalLogs: number;
 }
 
+type HistoryItem = Ticket | Agent | { id: string; name: string; spent?: number };
+
 interface AppState {
   // Company
   company: { id: string; name: string; mission: string } | null;
@@ -63,7 +65,7 @@ interface AppState {
   stats: DashboardStats | null;
   fetchStats: () => Promise<void>;
 
-  // Conversations
+  // conversations
   conversations: Conversation[];
   selectedConversation: Conversation | null;
   messages: Message[];
@@ -78,9 +80,9 @@ interface AppState {
   fetchLogs: (filters?: { level?: string; category?: string; agentId?: string }) => Promise<void>;
 
   // History (using existing types)
-  taskHistory: any[];
-  agentHistory: any[];
-  budgetHistory: any[];
+  taskHistory: HistoryItem[];
+  agentHistory: HistoryItem[];
+  budgetHistory: HistoryItem[];
   fetchHistory: () => Promise<void>;
 
   // Reports
@@ -124,7 +126,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   createAgent: async (data) => {
-    const agent = await agentsApi.create(data as any);
+    const agent = await agentsApi.create(data as Omit<Agent, 'id' | 'createdAt' | 'lastActive'>);
     set((state) => ({ agents: [...state.agents, agent] }));
     return agent;
   },
@@ -158,7 +160,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   createTicket: async (data) => {
-    const ticket = await ticketsApi.create(data as any);
+    const ticket = await ticketsApi.create(data as Omit<Ticket, 'id' | 'createdAt' | 'updatedAt'>);
     set((state) => ({ tickets: [ticket, ...state.tickets] }));
     return ticket;
   },
@@ -197,7 +199,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
-  // Conversations
+  // conversations
   conversations: [],
   selectedConversation: null,
   messages: [],
@@ -227,7 +229,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   createConversation: async (participants, initialMessage) => {
-    const newConv = {
+    const newConv: Conversation = {
       id: `conv_${Date.now()}`,
       participants,
       lastMessage: initialMessage,
@@ -255,7 +257,13 @@ export const useStore = create<AppState>((set, get) => ({
   agentHistory: [],
   budgetHistory: [],
   fetchHistory: async () => {
-    set({ taskHistory: get().tickets, agentHistory: get().agents, budgetHistory: get().agents });
+    const tickets = get().tickets;
+    const agents = get().agents;
+    set({
+      taskHistory: tickets,
+      agentHistory: agents,
+      budgetHistory: agents,
+    });
   },
 
   // Reports
