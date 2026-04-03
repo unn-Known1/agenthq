@@ -1,7 +1,9 @@
 {
-  "name": "react_repo",
+  "name": "agenthq",
+  "productName": "AgentHQ",
+  "version": "1.0.0",
+  "description": "AI Agent Orchestration Platform - Command center for running entire businesses with AI agents",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "pnpm install --prefer-offline && vite",
@@ -10,7 +12,15 @@
     "lint": "pnpm install --prefer-offline && eslint .",
     "preview": "pnpm install --prefer-offline && vite preview",
     "install-deps": "pnpm install --prefer-offline",
-    "clean": "rm -rf node_modules .pnpm-store pnpm-lock.yaml && pnpm store prune"
+    "clean": "rm -rf node_modules .pnpm-store pnpm-lock.yaml && pnpm store prune",
+    "electron:dev": "cd electron && npm run dev",
+    "electron:build": "cd electron && npm run build",
+    "electron:build:win": "cd electron && npx electron-builder --win",
+    "electron:build:mac": "cd electron && npx electron-builder --mac",
+    "electron:build:linux": "cd electron && npx electron-builder --linux",
+    "electron:build:all": "cd electron && npx electron-builder --win --mac --linux",
+    "build:all": "pnpm run build && pnpm run electron:build:all",
+    "release": "pnpm run build && cd electron && npm run build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
