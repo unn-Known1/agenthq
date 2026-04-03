@@ -1,0 +1,258 @@
+{
+  "company": {
+    "id": "comp_001",
+    "name": "AgentHQ Demo",
+    "mission": "Build the #1 AI note-taking app",
+    "createdAt": "2024-01-15T10:00:00.000Z",
+    "updatedAt": "2024-01-15T10:00:00.000Z"
+  },
+  "agents": [
+    {
+      "id": "agent_ceo_001",
+      "name": "Alex",
+      "role": "ceo",
+      "provider": "claude",
+      "model": "claude-3-5-sonnet-20241022",
+      "systemPrompt": "You are Alex, the CEO of our AI startup. You oversee all operations and make high-level decisions.",
+      "monthlyBudget": 500,
+      "currentSpend": 127.50,
+      "status": "active",
+      "parentId": null,
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z"
+    },
+    {
+      "id": "agent_cto_001",
+      "name": "Sam",
+      "role": "cto",
+      "provider": "claude",
+      "model": "claude-3-5-sonnet-20241022",
+      "systemPrompt": "You are Sam, the CTO. You lead technical decisions and architecture.",
+      "monthlyBudget": 800,
+      "currentSpend": 342.00,
+      "status": "active",
+      "parentId": "agent_ceo_001",
+      "createdAt": "2024-01-15T10:05:00.000Z",
+      "updatedAt": "2024-01-15T10:05:00.000Z"
+    },
+    {
+      "id": "agent_eng_001",
+      "name": "Jordan",
+      "role": "engineer",
+      "provider": "claude",
+      "model": "claude-3-5-haiku-20241022",
+      "systemPrompt": "You are Jordan, a backend engineer. You implement APIs and server logic.",
+      "monthlyBudget": 600,
+      "currentSpend": 189.25,
+      "status": "active",
+      "parentId": "agent_cto_001",
+      "createdAt": "2024-01-15T10:10:00.000Z",
+      "updatedAt": "2024-01-15T10:10:00.000Z"
+    },
+    {
+      "id": "agent_eng_002",
+      "name": "Taylor",
+      "role": "engineer",
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "systemPrompt": "You are Taylor, a frontend engineer. You build user interfaces and React components.",
+      "monthlyBudget": 450,
+      "currentSpend": 156.80,
+      "status": "active",
+      "parentId": "agent_cto_001",
+      "createdAt": "2024-01-15T10:15:00.000Z",
+      "updatedAt": "2024-01-15T10:15:00.000Z"
+    },
+    {
+      "id": "agent_des_001",
+      "name": "Morgan",
+      "role": "designer",
+      "provider": "claude",
+      "model": "claude-3-5-haiku-20241022",
+      "systemPrompt": "You are Morgan, a product designer. You create UI/UX designs and prototypes.",
+      "monthlyBudget": 400,
+      "currentSpend": 98.50,
+      "status": "active",
+      "parentId": "agent_ceo_001",
+      "createdAt": "2024-01-15T10:20:00.000Z",
+      "updatedAt": "2024-01-15T10:20:00.000Z"
+    },
+    {
+      "id": "agent_mkt_001",
+      "name": "Casey",
+      "role": "marketing",
+      "provider": "claude",
+      "model": "claude-3-5-haiku-20241022",
+      "systemPrompt": "You are Casey, the marketing lead. You create growth strategies and campaigns.",
+      "monthlyBudget": 350,
+      "currentSpend": 67.25,
+      "status": "active",
+      "parentId": "agent_ceo_001",
+      "createdAt": "2024-01-15T10:25:00.000Z",
+      "updatedAt": "2024-01-15T10:25:00.000Z"
+    }
+  ],
+  "tickets": [
+    {
+      "id": "TKT-001",
+      "title": "Implement user authentication system",
+      "description": "Set up OAuth 2.0 authentication with support for Google and GitHub login. Include session management and secure token storage.",
+      "priority": "high",
+      "status": "in_progress",
+      "assigneeId": "agent_eng_001",
+      "budgetAllocated": 150,
+      "budgetConsumed": 78.50,
+      "createdAt": "2024-01-20T09:00:00.000Z",
+      "updatedAt": "2024-01-22T14:30:00.000Z",
+      "completedAt": null
+    },
+    {
+      "id": "TKT-002",
+      "title": "Design landing page mockup",
+      "description": "Create a modern, clean landing page design. Include hero section, features showcase, pricing table, and CTA buttons.",
+      "priority": "medium",
+      "status": "review",
+      "assigneeId": "agent_des_001",
+      "budgetAllocated": 100,
+      "budgetConsumed": 95.00,
+      "createdAt": "2024-01-18T11:00:00.000Z",
+      "updatedAt": "2024-01-23T10:00:00.000Z",
+      "completedAt": null
+    },
+    {
+      "id": "TKT-003",
+      "title": "Build note-taking editor component",
+      "description": "Create a rich text editor for note-taking with markdown support, real-time saving, and collaborative features.",
+      "priority": "critical",
+      "status": "backlog",
+      "assigneeId": "agent_eng_002",
+      "budgetAllocated": 200,
+      "budgetConsumed": 0,
+      "createdAt": "2024-01-21T15:00:00.000Z",
+      "updatedAt": "2024-01-21T15:00:00.000Z",
+      "completedAt": null
+    },
+    {
+      "id": "TKT-004",
+      "title": "Plan launch marketing campaign",
+      "description": "Develop go-to-market strategy including social media, email campaigns, and press releases for product launch.",
+      "priority": "medium",
+      "status": "in_progress",
+      "assigneeId": "agent_mkt_001",
+      "budgetAllocated": 80,
+      "budgetConsumed": 35.25,
+      "createdAt": "2024-01-19T10:00:00.000Z",
+      "updatedAt": "2024-01-23T16:00:00.000Z",
+      "completedAt": null
+    },
+    {
+      "id": "TKT-005",
+      "title": "Set up CI/CD pipeline",
+      "description": "Configure GitHub Actions for automated testing, building, and deployment to production.",
+      "priority": "high",
+      "status": "done",
+      "assigneeId": "agent_eng_001",
+      "budgetAllocated": 75,
+      "budgetConsumed": 62.30,
+      "createdAt": "2024-01-16T09:00:00.000Z",
+      "updatedAt": "2024-01-20T17:00:00.000Z",
+      "completedAt": "2024-01-20T17:00:00.000Z"
+    },
+    {
+      "id": "TKT-006",
+      "title": "Create API documentation",
+      "description": "Write comprehensive API documentation with examples, authentication guide, and rate limiting info.",
+      "priority": "low",
+      "status": "backlog",
+      "assigneeId": "agent_cto_001",
+      "budgetAllocated": 60,
+      "budgetConsumed": 0,
+      "createdAt": "2024-01-22T11:00:00.000Z",
+      "updatedAt": "2024-01-22T11:00:00.000Z",
+      "completedAt": null
+    },
+    {
+      "id": "TKT-007",
+      "title": "Implement dark mode toggle",
+      "description": "Add theme switcher with system preference detection and local storage persistence.",
+      "priority": "low",
+      "status": "done",
+      "assigneeId": "agent_eng_002",
+      "budgetAllocated": 40,
+      "budgetConsumed": 38.50,
+      "createdAt": "2024-01-17T14:00:00.000Z",
+      "updatedAt": "2024-01-19T12:00:00.000Z",
+      "completedAt": "2024-01-19T12:00:00.000Z"
+    },
+    {
+      "id": "TKT-008",
+      "title": "Design mobile responsive layout",
+      "description": "Ensure all pages work well on mobile devices with appropriate breakpoints and touch-friendly interactions.",
+      "priority": "medium",
+      "status": "backlog",
+      "assigneeId": "agent_des_001",
+      "budgetAllocated": 120,
+      "budgetConsumed": 0,
+      "createdAt": "2024-01-23T09:00:00.000Z",
+      "updatedAt": "2024-01-23T09:00:00.000Z",
+      "completedAt": null
+    }
+  ],
+  "activities": [
+    {
+      "id": "act_001",
+      "type": "ticket_updated",
+      "agentId": "agent_eng_001",
+      "ticketId": "TKT-001",
+      "message": "Jordan updated ticket: Implement user authentication system",
+      "metadata": { "fromStatus": "backlog", "toStatus": "in_progress" },
+      "createdAt": "2024-01-22T14:30:00.000Z"
+    },
+    {
+      "id": "act_002",
+      "type": "budget_alert",
+      "agentId": "agent_eng_001",
+      "ticketId": null,
+      "message": "Jordan has reached 80% of monthly budget",
+      "metadata": { "percentage": 85 },
+      "createdAt": "2024-01-22T10:15:00.000Z"
+    },
+    {
+      "id": "act_003",
+      "type": "ticket_created",
+      "agentId": "agent_des_001",
+      "ticketId": "TKT-008",
+      "message": "Morgan created ticket: Design mobile responsive layout",
+      "metadata": {},
+      "createdAt": "2024-01-23T09:00:00.000Z"
+    },
+    {
+      "id": "act_004",
+      "type": "ticket_updated",
+      "agentId": "agent_des_001",
+      "ticketId": "TKT-002",
+      "message": "Morgan moved ticket to review: Design landing page mockup",
+      "metadata": { "fromStatus": "in_progress", "toStatus": "review" },
+      "createdAt": "2024-01-23T10:00:00.000Z"
+    },
+    {
+      "id": "act_005",
+      "type": "agent_joined",
+      "agentId": "agent_mkt_001",
+      "ticketId": null,
+      "message": "Casey joined as Marketing Lead",
+      "metadata": {},
+      "createdAt": "2024-01-15T10:25:00.000Z"
+    },
+    {
+      "id": "act_006",
+      "type": "ticket_updated",
+      "agentId": "agent_mkt_001",
+      "ticketId": "TKT-004",
+      "message": "Casey updated ticket: Plan launch marketing campaign",
+      "metadata": { "fromStatus": "backlog", "toStatus": "in_progress" },
+      "createdAt": "2024-01-23T16:00:00.000Z"
+    }
+  ],
+  "ticketCounter": 9
+}
