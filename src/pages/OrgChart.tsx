@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Users, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useStore } from '../stores/appStore';
 import AgentModal from '../components/AgentModal';
 
