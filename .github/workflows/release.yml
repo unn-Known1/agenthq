@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifact_name: 'agenthq'
+          - os: windows-latest
+            platform: win
+            artifact_name: 'AgentHQ'
+          - os: macos-latest
+            platform: mac
+            artifact_name: 'AgentHQ'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Get frontend dependencies
+        working-directory: ./frontend
+        run: pnpm install --prefer-offline
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: pnpm run build
+
+      - name: Install Electron dependencies
+        working-directory: ./frontend/electron
+        run: npm install
+
+      - name: Build Electron app - ${{ matrix.platform }}
+        working-directory: ./frontend/electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ matrix.platform }}" == "linux" ]; then
+            npx electron-builder --linux deb tar.gz
+          elif [ "${{ matrix.platform }}" == "win" ]; then
+            npx electron-builder --win nsis portable
+          else
+            npx electron-builder --mac dmg zip
+          fi
+
+      - name: Upload release artifacts
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./frontend/electron/release/${{ matrix.artifact_name }}*
+          asset_name: ${{ matrix.artifact_name }}-${{ github.ref_name }}-${{ matrix.platform }}-${{ runner.os }}
+          asset_content_type: application/octet-stream
+
+  create_release:
+    needs: release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
