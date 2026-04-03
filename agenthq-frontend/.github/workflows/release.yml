@@ -39,26 +39,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache: 'pnpm'
 
       - name: Install pnpm
         run: npm install -g pnpm
 
       - name: Get frontend dependencies
-        working-directory: ./frontend
         run: pnpm install --prefer-offline
 
       - name: Build frontend
-        working-directory: ./frontend
         run: pnpm run build
 
       - name: Install Electron dependencies
-        working-directory: ./frontend/electron
+        working-directory: ./electron
         run: npm install
 
       - name: Build Electron app - ${{ matrix.platform }}
-        working-directory: ./frontend/electron
+        working-directory: ./electron
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -76,7 +73,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./frontend/electron/release/${{ matrix.artifact_name }}*
+          asset_path: ./electron/release/${{ matrix.artifact_name }}*
           asset_name: ${{ matrix.artifact_name }}-${{ github.ref_name }}-${{ matrix.platform }}-${{ runner.os }}
           asset_content_type: application/octet-stream
 

@@ -21,26 +21,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache: 'pnpm'
 
       - name: Install pnpm
         run: npm install -g pnpm
 
       - name: Install dependencies
-        working-directory: ./frontend
         run: pnpm install --prefer-offline
 
       - name: Run lint
-        working-directory: ./frontend
         run: pnpm run lint
 
       - name: TypeScript check
-        working-directory: ./frontend
-        run: npx tsc --noEmit
+        run: pnpm tsc -b --noEmit
 
       - name: Build
-        working-directory: ./frontend
         run: pnpm run build
 
   build-preview:
@@ -55,23 +50,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache: 'pnpm'
 
       - name: Install pnpm
         run: npm install -g pnpm
 
       - name: Install dependencies
-        working-directory: ./frontend
         run: pnpm install --prefer-offline
 
       - name: Build frontend
-        working-directory: ./frontend
         run: pnpm run build
 
       - name: Upload preview build
         uses: actions/upload-artifact@v4
         with:
           name: preview-build
-          path: frontend/dist
+          path: dist
           retention-days: 7
