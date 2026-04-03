@@ -56,7 +56,7 @@ export interface LogEntry {
   agentId: string | null
   message: string
   timestamp: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface Activity {
@@ -254,7 +254,7 @@ const mockTickets: Ticket[] = [
     id: 'ticket_005',
     title: 'Fix payment integration bug',
     description: 'Users reporting failed transactions with Stripe payment gateway',
-    status: 'urgent',
+    status: 'open',
     priority: 'urgent',
     assigneeId: 'agent_eng_001',
     createdById: 'agent_sup_001',
