@@ -14,6 +14,9 @@ on:
 env:
   NODE_VERSION: '20.x'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ${{ matrix.os }}
@@ -55,9 +58,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ "${{ matrix.platform }}" == "linux" ]; then
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
             npx electron-builder --linux deb tar.gz
-          elif [ "${{ matrix.platform }}" == "win" ]; then
+          elif [[ "${{ matrix.platform }}" == "win" ]]; then
             npx electron-builder --win nsis portable
           else
             npx electron-builder --mac dmg zip
