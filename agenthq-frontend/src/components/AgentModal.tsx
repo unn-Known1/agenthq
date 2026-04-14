@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bot, UserPlus, AlertCircle, ChevronDown, Eye, EyeOff } from 'lucide-react';
+import { X, Bot, UserPlus, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useStore } from '../stores/appStore';
 import { Agent } from '../lib/api';
 
@@ -90,7 +90,7 @@ export default function AgentModal({ onClose }: AgentModalProps) {
         parentId: formData.parentId,
       });
       onClose();
-    } catch (err) {
+    } catch {
       setError('Failed to create agent');
     } finally {
       setLoading(false);
