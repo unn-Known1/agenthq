@@ -2,12 +2,9 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ScrollText,
-  Filter,
   Search,
   Bot,
-  Wrench,
   AlertTriangle,
-  CheckCircle,
   Info,
   Download,
 } from 'lucide-react';
