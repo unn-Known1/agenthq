@@ -7,7 +7,6 @@ import {
   UserMinus,
   DollarSign,
   Settings,
-  Filter,
 } from 'lucide-react';
 import { historyApi, HistoryEntry } from '../lib/api';
 import { formatDistanceToNow } from 'date-fns';
