@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bot, Mail, DollarSign, Activity, AlertTriangle, Pause, Play, Trash2 } from 'lucide-react';
+import { X, Bot, DollarSign, Activity, AlertTriangle, Pause, Play, Trash2 } from 'lucide-react';
 import { Agent } from '../lib/api';
 import { useStore } from '../stores/appStore';
 
