@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   Bot,
   Plus,
-  ArrowRight,
 } from 'lucide-react';
 import { useStore } from '../stores/appStore';
 import AgentModal from '../components/AgentModal';
