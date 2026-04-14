@@ -45,7 +45,7 @@ export default function TicketModal({ onClose }: TicketModalProps) {
         assigneeId: formData.assigneeId || null,
       });
       onClose();
-    } catch (err) {
+    } catch {
       setError('Failed to create ticket');
     } finally {
       setLoading(false);
