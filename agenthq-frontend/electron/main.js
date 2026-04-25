@@ -7,6 +7,13 @@ let mainWindow;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Get the frontend dev server URL from environment or use default
+const getFrontendUrl = () => {
+  const envUrl = process.env.FRONTEND_URL;
+  if (envUrl) return envUrl;
+  return 'http://127.0.0.1:5173';
+};
+
 function createWindow() {
   // Create the browser window
   mainWindow = new BrowserWindow({
@@ -31,7 +38,7 @@ function createWindow() {
 
   // Load the app
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL(getFrontendUrl());
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
@@ -172,7 +179,8 @@ app.on('window-all-closed', () => {
 app.on('web-contents-created', (event, contents) => {
   contents.on('will-navigate', (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl);
-    if (parsedUrl.origin !== 'http://localhost:5173' && parsedUrl.protocol !== 'file:') {
+    const allowedOrigin = new URL(getFrontendUrl()).origin;
+    if (parsedUrl.origin !== allowedOrigin && parsedUrl.protocol !== 'file:') {
       event.preventDefault();
       shell.openExternal(navigationUrl);
     }

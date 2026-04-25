@@ -3,6 +3,17 @@ import { motion } from 'framer-motion';
 import { Bot, AlertTriangle, ChevronDown, User } from 'lucide-react';
 import { useStore } from '../stores/appStore';
 
+// Get API base URL from environment or default to current origin + default port
+const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const envUrl = (window as any).ENV?.API_BASE_URL;
+    if (envUrl) return envUrl;
+    // Use same origin with default backend port
+    return `${window.location.protocol}//${window.location.hostname}:3001`;
+  }
+  return 'http://localhost:3001';
+};
+
 export default function TopBar() {
   const { company, stats, setCompany } = useStore();
   const [editing, setEditing] = useState(false);
@@ -10,7 +21,7 @@ export default function TopBar() {
 
   useEffect(() => {
     // Fetch company on mount
-    fetch('http://localhost:3001/api/company')
+    fetch(`${getApiBaseUrl()}/api/company`)
       .then((res) => res.json())
       .then((data) => setCompany(data))
       .catch(console.error);

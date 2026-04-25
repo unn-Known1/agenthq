@@ -1064,6 +1064,7 @@ function formatStatus(status) {
 seedData();
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`AgentHQ Backend running on http://localhost:${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`AgentHQ Backend running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
 });
