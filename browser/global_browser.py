@@ -132,10 +132,10 @@ async def launch_chrome_debug(use_chrome_channel: bool = False, headless: bool =
         logger.info("[GlobalBrowser] Checking if Chrome is already running on port 9222...")
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get("http://localhost:9222/json/version", timeout=aiohttp.ClientTimeout(total=2)) as response:
+                async with session.get("http://127.0.0.1:9222/json/version", timeout=aiohttp.ClientTimeout(total=2)) as response:
                     if response.status == 200:
                         logger.info("[GlobalBrowser] Chrome is already running on port 9222, reusing existing instance")
-                        browser = await playwright.chromium.connect_over_cdp("http://localhost:9222")
+                        browser = await playwright.chromium.connect_over_cdp("http://127.0.0.1:9222")
                         context = browser.contexts[0] if browser.contexts else await browser.new_context()
                         metrics_counter_inc("agent_browser_launch", {"status": "success"})
 
@@ -211,7 +211,7 @@ async def launch_chrome_debug(use_chrome_channel: bool = False, headless: bool =
         while waited < max_wait_time:
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get("http://localhost:9222/json/version", timeout=aiohttp.ClientTimeout(total=2)) as response:
+                    async with session.get("http://127.0.0.1:9222/json/version", timeout=aiohttp.ClientTimeout(total=2)) as response:
                         if response.status == 200:
                             logger.info(f"[GlobalBrowser] Chrome is ready after {waited} seconds ✓")
                             chrome_ready = True
@@ -229,7 +229,7 @@ async def launch_chrome_debug(use_chrome_channel: bool = False, headless: bool =
         # 连接到 Chrome
         logger.info("[GlobalBrowser] Connecting to Chrome via CDP...")
         browser = await playwright.chromium.connect_over_cdp(
-            "http://localhost:9222",
+            "http://127.0.0.1:9222",
             timeout=30000,  # 30 second timeout for connection
         )
         logger.info("[GlobalBrowser] Successfully connected to Chrome ✓")
