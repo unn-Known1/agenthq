@@ -3,7 +3,7 @@ import cors from 'cors';
 import crypto from 'crypto';
 import { readFileSync, writeFileSync, readdirSync, readFile, writeFile, mkdir, rm, stat } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 // API Key Encryption - AES-256-GCM
@@ -73,6 +73,111 @@ function maskApiKey(apiKey) {
     return apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4);
   }
   return '****';
+}
+
+// Path Traversal Prevention
+function validateAndResolvePath(userPath) {
+  // Normalize the user-provided path
+  const normalizedPath = userPath.replace(/\\/g, '/');
+
+  // Resolve the full path
+  const fullPath = join(WORKSPACE_PATH, normalizedPath);
+  const resolvedPath = resolve(fullPath);
+
+  // Ensure the resolved path is within WORKSPACE_PATH
+  const resolvedWorkspace = resolve(WORKSPACE_PATH);
+
+  if (!resolvedPath.startsWith(resolvedWorkspace + '/')) {
+    throw new Error('Path traversal detected: Access outside workspace is not allowed');
+  }
+
+  return resolvedPath;
+}
+
+// Input Validation for Tool Parameters
+function validateToolParameters(toolId, parameters) {
+  const MAX_PATH_LENGTH = 4096;
+  const MAX_CONTENT_LENGTH = 10 * 1024 * 1024; // 10MB
+  const MAX_PATTERN_LENGTH = 256;
+
+  switch (toolId) {
+    case 'read_file':
+    case 'delete_file':
+    case 'list_files':
+    case 'create_folder':
+    case 'delete_folder':
+      if (!parameters.path || typeof parameters.path !== 'string') {
+        throw new Error('Invalid parameters: path is required and must be a string');
+      }
+      if (parameters.path.length > MAX_PATH_LENGTH) {
+        throw new Error(`Invalid parameters: path exceeds maximum length of ${MAX_PATH_LENGTH}`);
+      }
+      // Check for obviously malicious patterns
+      if (parameters.path.includes('\0')) {
+        throw new Error('Invalid parameters: null bytes are not allowed');
+      }
+      break;
+
+    case 'write_file':
+      if (!parameters.path || typeof parameters.path !== 'string') {
+        throw new Error('Invalid parameters: path is required and must be a string');
+      }
+      if (parameters.path.length > MAX_PATH_LENGTH) {
+        throw new Error(`Invalid parameters: path exceeds maximum length of ${MAX_PATH_LENGTH}`);
+      }
+      if (typeof parameters.content !== 'string') {
+        throw new Error('Invalid parameters: content is required and must be a string');
+      }
+      if (parameters.content.length > MAX_CONTENT_LENGTH) {
+        throw new Error(`Invalid parameters: content exceeds maximum length of ${MAX_CONTENT_LENGTH} bytes`);
+      }
+      if (parameters.path.includes('\0')) {
+        throw new Error('Invalid parameters: null bytes are not allowed');
+      }
+      break;
+
+    case 'edit_file':
+      if (!parameters.path || typeof parameters.path !== 'string') {
+        throw new Error('Invalid parameters: path is required and must be a string');
+      }
+      if (typeof parameters.old_string !== 'string' || typeof parameters.new_string !== 'string') {
+        throw new Error('Invalid parameters: old_string and new_string are required and must be strings');
+      }
+      if (parameters.path.length > MAX_PATH_LENGTH) {
+        throw new Error(`Invalid parameters: path exceeds maximum length of ${MAX_PATH_LENGTH}`);
+      }
+      if (parameters.old_string.length > MAX_CONTENT_LENGTH || parameters.new_string.length > MAX_CONTENT_LENGTH) {
+        throw new Error(`Invalid parameters: string parameters exceed maximum length`);
+      }
+      if (parameters.path.includes('\0')) {
+        throw new Error('Invalid parameters: null bytes are not allowed');
+      }
+      break;
+
+    case 'search_files':
+      if (!parameters.path || typeof parameters.path !== 'string') {
+        throw new Error('Invalid parameters: path is required and must be a string');
+      }
+      if (!parameters.pattern || typeof parameters.pattern !== 'string') {
+        throw new Error('Invalid parameters: pattern is required and must be a string');
+      }
+      if (parameters.path.length > MAX_PATH_LENGTH) {
+        throw new Error(`Invalid parameters: path exceeds maximum length of ${MAX_PATH_LENGTH}`);
+      }
+      if (parameters.pattern.length > MAX_PATTERN_LENGTH) {
+        throw new Error(`Invalid parameters: pattern exceeds maximum length of ${MAX_PATTERN_LENGTH}`);
+      }
+      // Prevent regex injection - only allow simple glob patterns
+      if (!/^[a-zA-Z0-9_.\-*?]+$/.test(parameters.pattern)) {
+        throw new Error('Invalid parameters: pattern contains invalid characters');
+      }
+      if (parameters.path.includes('\0')) {
+        throw new Error('Invalid parameters: null bytes are not allowed');
+      }
+      break;
+  }
+
+  return true;
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -731,24 +836,31 @@ app.post('/api/tools/execute', async (req, res) => {
   const tool = TOOLS[toolId];
   if (!tool) return res.status(404).json({ error: 'Tool not found' });
 
+  // Validate input parameters
+  try {
+    validateToolParameters(toolId, parameters);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
+  }
+
   const startTime = Date.now();
   let result, success = true, error = null;
 
   try {
     switch (toolId) {
       case 'read_file': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = validateAndResolvePath(parameters.path);
         result = await readFile(fullPath, 'utf-8');
         break;
       }
       case 'write_file': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = validateAndResolvePath(parameters.path);
         await writeFile(fullPath, parameters.content);
         result = `File written: ${parameters.path}`;
         break;
       }
       case 'edit_file': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = validateAndResolvePath(parameters.path);
         const content = await readFile(fullPath, 'utf-8');
         const newContent = content.replace(parameters.old_string, parameters.new_string);
         await writeFile(fullPath, newContent);
@@ -756,32 +868,31 @@ app.post('/api/tools/execute', async (req, res) => {
         break;
       }
       case 'delete_file': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = validateAndResolvePath(parameters.path);
         await rm(fullPath, { force: true });
         result = `File deleted: ${parameters.path}`;
         break;
       }
       case 'create_folder': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = validateAndResolvePath(parameters.path);
         await mkdir(fullPath, { recursive: true });
         result = `Folder created: ${parameters.path}`;
         break;
       }
       case 'delete_folder': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = validateAndResolvePath(parameters.path);
         await rm(fullPath, { recursive: true, force: true });
         result = `Folder deleted: ${parameters.path}`;
         break;
       }
       case 'list_files': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = validateAndResolvePath(parameters.path);
         const files = readdirSync(fullPath);
         result = JSON.stringify(files);
         break;
       }
       case 'search_files': {
-        // Simple search - in real app would use glob
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = validateAndResolvePath(parameters.path);
         const files = readdirSync(fullPath).filter(f => f.includes(parameters.pattern));
         result = JSON.stringify(files);
         break;
