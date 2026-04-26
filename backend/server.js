@@ -1,9 +1,79 @@
 import express from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import { readFileSync, writeFileSync, readdirSync, readFile, writeFile, mkdir, rm, stat } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+
+// API Key Encryption - AES-256-GCM
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || null;
+const IV_LENGTH = 16;
+const AUTH_TAG_LENGTH = 16;
+
+function getEncryptionKey() {
+  if (!ENCRYPTION_KEY) {
+    console.warn('WARNING: ENCRYPTION_KEY not set. API keys will NOT be encrypted!');
+    return null;
+  }
+  if (ENCRYPTION_KEY.length !== 64) {
+    throw new Error('ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
+  }
+  return Buffer.from(ENCRYPTION_KEY, 'hex');
+}
+
+function encryptApiKey(apiKey) {
+  if (!apiKey) return null;
+  const key = getEncryptionKey();
+  if (!key) return apiKey; // Return plaintext if no encryption key
+
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+
+  let encrypted = cipher.update(apiKey, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag();
+
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+}
+
+function decryptApiKey(encryptedApiKey) {
+  if (!encryptedApiKey) return null;
+  const key = getEncryptionKey();
+  if (!key) return encryptedApiKey; // Return as-is if no encryption key
+
+  // Check if it's encrypted format (has colons)
+  if (!encryptedApiKey.includes(':')) return encryptedApiKey;
+
+  try {
+    const [ivHex, authTagHex, encrypted] = encryptedApiKey.split(':');
+    const iv = Buffer.from(ivHex, 'hex');
+    const authTag = Buffer.from(authTagHex, 'hex');
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (error) {
+    console.error('Failed to decrypt API key:', error.message);
+    return null;
+  }
+}
+
+// Mask API key for display (show first 8 and last 4 chars)
+function maskApiKey(apiKey) {
+  if (!apiKey) return null;
+  if (apiKey.includes(':')) {
+    // It's encrypted, mask the whole thing
+    return '[ENCRYPTED]';
+  }
+  if (apiKey.length > 12) {
+    return apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 4);
+  }
+  return '****';
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -13,8 +83,32 @@ const PORT = process.env.PORT || 3001;
 const DATA_PATH = join(__dirname, 'data', 'store.json');
 const WORKSPACE_PATH = process.env.WORKSPACE_PATH || '/workspace';
 
+// CORS Configuration - secure by default
+const getCorsOptions = () => {
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
+
+  // In production, require explicit origin list
+  if (process.env.NODE_ENV === 'production') {
+    if (allowedOrigins.length === 0) {
+      console.warn('WARNING: CORS_ALLOWED_ORIGINS not set in production! No origins will be allowed.');
+    }
+    return {
+      origin: allowedOrigins.length > 0 ? allowedOrigins : false,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization']
+    };
+  }
+
+  // In development, allow localhost for easier testing
+  return {
+    origin: allowedOrigins.length > 0 ? allowedOrigins : ['http://localhost:3000', 'http://localhost:5173'],
+    credentials: true
+  };
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(getCorsOptions()));
 app.use(express.json());
 
 // SSE clients for real-time updates
@@ -149,7 +243,12 @@ app.put('/api/company', (req, res) => {
 
 app.get('/api/agents', (req, res) => {
   const data = loadData();
-  res.json(data.agents || []);
+  // Mask API keys in response for security
+  const agentsWithMaskedKeys = (data.agents || []).map(agent => ({
+    ...agent,
+    apiKey: maskApiKey(agent.apiKey)
+  }));
+  res.json(agentsWithMaskedKeys);
 });
 
 app.post('/api/agents', (req, res) => {
@@ -159,6 +258,9 @@ app.post('/api/agents', (req, res) => {
     systemPrompt, monthlyBudget, parentId, canCreateAgents, canUseTools
   } = req.body;
 
+  // Encrypt API key before storing
+  const encryptedApiKey = encryptApiKey(apiKey);
+
   const agent = {
     id: `agent_${role || 'new'}_${uuidv4().slice(0, 6)}`,
     name: name || 'New Agent',
@@ -166,7 +268,7 @@ app.post('/api/agents', (req, res) => {
     provider: provider || 'claude',
     baseUrl: baseUrl || null,
     model: model || getDefaultModel(provider),
-    apiKey: apiKey || null,
+    apiKey: encryptedApiKey, // Store encrypted
     systemPrompt: systemPrompt || `You are ${name || 'an agent'} working at this company.`,
     monthlyBudget: monthlyBudget || 500,
     currentSpend: 0,
@@ -194,14 +296,18 @@ app.post('/api/agents', (req, res) => {
   addActivity(data, 'agent_joined', agent.id, null, `${agent.name} joined as ${formatRole(agent.role)}`);
   saveData(data);
 
-  res.status(201).json(agent);
+  // Return with masked API key for display
+  const response = { ...agent, apiKey: maskApiKey(encryptedApiKey) };
+  res.status(201).json(response);
 });
 
 app.get('/api/agents/:id', (req, res) => {
   const data = loadData();
   const agent = data.agents.find(a => a.id === req.params.id);
   if (!agent) return res.status(404).json({ error: 'Agent not found' });
-  res.json(agent);
+  // Mask API key in response
+  const response = { ...agent, apiKey: maskApiKey(agent.apiKey) };
+  res.json(response);
 });
 
 app.put('/api/agents/:id', (req, res) => {
@@ -217,14 +323,21 @@ app.put('/api/agents/:id', (req, res) => {
 
   allowedUpdates.forEach(field => {
     if (req.body[field] !== undefined) {
-      data.agents[index][field] = req.body[field];
+      // Encrypt API key if being updated
+      if (field === 'apiKey') {
+        data.agents[index][field] = encryptApiKey(req.body[field]);
+      } else {
+        data.agents[index][field] = req.body[field];
+      }
     }
   });
 
   data.agents[index].updatedAt = new Date().toISOString();
   addLog(data, 'info', 'agent', `${data.agents[index].name} settings updated`, { agentId: req.params.id });
   saveData(data);
-  res.json(data.agents[index]);
+  // Return with masked API key
+  const response = { ...data.agents[index], apiKey: maskApiKey(data.agents[index].apiKey) };
+  res.json(response);
 });
 
 app.put('/api/agents/:id/budget', (req, res) => {
