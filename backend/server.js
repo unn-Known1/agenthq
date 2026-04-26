@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { readFileSync, writeFileSync, readdirSync, readFile, writeFile, mkdir, rm, stat } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, resolve, isAbsolute, normalize } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -10,8 +10,32 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || '0.0.0.0';
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const DATA_PATH = join(__dirname, 'data', 'store.json');
 const WORKSPACE_PATH = process.env.WORKSPACE_PATH || '/workspace';
+
+// Security: API Key authentication
+const API_KEY = process.env.API_KEY;
+const USE_AUTH = API_KEY ? true : false;
+
+// Request validation middleware
+app.use((req, res, next) => {
+  // Skip auth for health check
+  if (req.path === '/health') return next();
+
+  // Validate API key if enabled
+  if (USE_AUTH) {
+    const providedKey = req.headers['x-api-key'];
+    if (!providedKey || providedKey !== API_KEY) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid or missing API key. Please provide a valid X-API-Key header.'
+      });
+    }
+  }
+  next();
+});
 
 // Middleware
 app.use(cors());
@@ -60,6 +84,51 @@ function saveData(data) {
   } catch (error) {
     console.error('Error saving data:', error);
   }
+}
+
+// Helper function to validate and resolve path safely
+function safeResolve(filePath, basePath = WORKSPACE_PATH) {
+  // Check for null/undefined
+  if (!filePath || typeof filePath !== 'string') {
+    throw new Error('Invalid path: path must be a non-empty string');
+  }
+
+  // Block null byte injection
+  if (filePath.includes('\0')) {
+    throw new Error('Invalid path: null bytes not allowed');
+  }
+
+  // Block common traversal patterns
+  const dangerousPatterns = ['../', '..\\', '%2e%2e', '%252e'];
+  const lowerPath = filePath.toLowerCase();
+  for (const pattern of dangerousPatterns) {
+    if (lowerPath.includes(pattern)) {
+      throw new Error('Invalid path: path traversal detected');
+    }
+  }
+
+  // Resolve the absolute path
+  let resolvedPath;
+  try {
+    if (isAbsolute(filePath)) {
+      resolvedPath = normalize(filePath);
+    } else {
+      resolvedPath = resolve(basePath, filePath);
+    }
+  } catch (err) {
+    throw new Error('Invalid path: unable to resolve path');
+  }
+
+  // Normalize and verify it's within workspace
+  const normalizedPath = normalize(resolvedPath);
+  const normalizedBase = normalize(basePath);
+
+  // Ensure the path is within the workspace directory
+  if (!normalizedPath.startsWith(normalizedBase)) {
+    throw new Error('Access denied: path outside workspace directory');
+  }
+
+  return normalizedPath;
 }
 
 // Broadcast to SSE clients
@@ -535,7 +604,7 @@ const TOOLS = {
     description: 'Read contents of a file',
     category: 'file',
     parameters: [
-      { name: 'path', type: 'string', required: true, description: 'File path to read' }
+      { name: 'path', type: 'string', required: true, description: 'File path to read', pattern: /^[\w\-. /]+$/ }
     ]
   },
   write_file: {
@@ -544,7 +613,7 @@ const TOOLS = {
     description: 'Create or overwrite a file',
     category: 'file',
     parameters: [
-      { name: 'path', type: 'string', required: true, description: 'File path to write' },
+      { name: 'path', type: 'string', required: true, description: 'File path to write', pattern: /^[\w\-. /]+$/ },
       { name: 'content', type: 'string', required: true, description: 'Content to write' }
     ]
   },
@@ -554,7 +623,7 @@ const TOOLS = {
     description: 'Edit specific parts of a file',
     category: 'file',
     parameters: [
-      { name: 'path', type: 'string', required: true, description: 'File path to edit' },
+      { name: 'path', type: 'string', required: true, description: 'File path to edit', pattern: /^[\w\-. /]+$/ },
       { name: 'old_string', type: 'string', required: true, description: 'String to replace' },
       { name: 'new_string', type: 'string', required: true, description: 'Replacement string' }
     ]
@@ -565,7 +634,7 @@ const TOOLS = {
     description: 'Delete a file',
     category: 'file',
     parameters: [
-      { name: 'path', type: 'string', required: true, description: 'File path to delete' }
+      { name: 'path', type: 'string', required: true, description: 'File path to delete', pattern: /^[\w\-. /]+$/ }
     ]
   },
   create_folder: {
@@ -574,7 +643,7 @@ const TOOLS = {
     description: 'Create a directory',
     category: 'file',
     parameters: [
-      { name: 'path', type: 'string', required: true, description: 'Directory path to create' }
+      { name: 'path', type: 'string', required: true, description: 'Directory path to create', pattern: /^[\w\-. /]+$/ }
     ]
   },
   delete_folder: {
@@ -583,7 +652,7 @@ const TOOLS = {
     description: 'Delete a directory',
     category: 'file',
     parameters: [
-      { name: 'path', type: 'string', required: true, description: 'Directory path to delete' }
+      { name: 'path', type: 'string', required: true, description: 'Directory path to delete', pattern: /^[\w\-. /]+$/ }
     ]
   },
   list_files: {
@@ -592,7 +661,7 @@ const TOOLS = {
     description: 'List files in a directory',
     category: 'file',
     parameters: [
-      { name: 'path', type: 'string', required: true, description: 'Directory path to list' }
+      { name: 'path', type: 'string', required: true, description: 'Directory path to list', pattern: /^[\w\-. /]*$/ }
     ]
   },
   search_files: {
@@ -601,11 +670,43 @@ const TOOLS = {
     description: 'Search for files by pattern',
     category: 'file',
     parameters: [
-      { name: 'path', type: 'string', required: true, description: 'Directory to search in' },
+      { name: 'path', type: 'string', required: true, description: 'Directory to search in', pattern: /^[\w\-. /]*$/ },
       { name: 'pattern', type: 'string', required: true, description: 'Search pattern (glob)' }
     ]
   }
 };
+
+// Input validation helper
+function validateToolParameters(toolId, parameters) {
+  const tool = TOOLS[toolId];
+  if (!tool) {
+    return { valid: false, error: `Unknown tool: ${toolId}` };
+  }
+
+  // Check required parameters
+  for (const param of tool.parameters) {
+    if (param.required && (!parameters[param.name] || parameters[param.name] === '')) {
+      return { valid: false, error: `Missing required parameter: ${param.name}` };
+    }
+
+    // Validate parameter pattern if provided
+    if (param.pattern && parameters[param.name]) {
+      const regex = new RegExp(param.pattern);
+      if (!regex.test(parameters[param.name])) {
+        return { valid: false, error: `Invalid format for parameter: ${param.name}` };
+      }
+    }
+
+    // Validate string lengths to prevent DoS
+    if (typeof parameters[param.name] === 'string') {
+      if (parameters[param.name].length > 10000) {
+        return { valid: false, error: `Parameter ${param.name} exceeds maximum length (10000)` };
+      }
+    }
+  }
+
+  return { valid: true };
+}
 
 app.get('/api/tools', (req, res) => {
   res.json(Object.values(TOOLS));
@@ -615,8 +716,31 @@ app.post('/api/tools/execute', async (req, res) => {
   const data = loadData();
   const { toolId, agentId, taskId, parameters } = req.body;
 
+  // Validate tool exists
   const tool = TOOLS[toolId];
-  if (!tool) return res.status(404).json({ error: 'Tool not found' });
+  if (!tool) {
+    return res.status(400).json({
+      error: 'Invalid Request',
+      message: `Tool '${toolId}' not found. Available tools: ${Object.keys(TOOLS).join(', ')}`
+    });
+  }
+
+  // Validate parameters
+  if (!parameters || typeof parameters !== 'object') {
+    return res.status(400).json({
+      error: 'Invalid Request',
+      message: 'Parameters must be a valid object containing tool-specific values'
+    });
+  }
+
+  const validation = validateToolParameters(toolId, parameters);
+  if (!validation.valid) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: validation.error,
+      details: `For tool '${toolId}', please provide all required parameters with valid values`
+    });
+  }
 
   const startTime = Date.now();
   let result, success = true, error = null;
@@ -624,57 +748,60 @@ app.post('/api/tools/execute', async (req, res) => {
   try {
     switch (toolId) {
       case 'read_file': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = safeResolve(parameters.path);
         result = await readFile(fullPath, 'utf-8');
         break;
       }
       case 'write_file': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = safeResolve(parameters.path);
         await writeFile(fullPath, parameters.content);
         result = `File written: ${parameters.path}`;
         break;
       }
       case 'edit_file': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = safeResolve(parameters.path);
         const content = await readFile(fullPath, 'utf-8');
+        if (!content.includes(parameters.old_string)) {
+          throw new Error('Search string not found in file. Please verify the exact text to replace.');
+        }
         const newContent = content.replace(parameters.old_string, parameters.new_string);
         await writeFile(fullPath, newContent);
         result = `File edited: ${parameters.path}`;
         break;
       }
       case 'delete_file': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = safeResolve(parameters.path);
         await rm(fullPath, { force: true });
         result = `File deleted: ${parameters.path}`;
         break;
       }
       case 'create_folder': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = safeResolve(parameters.path);
         await mkdir(fullPath, { recursive: true });
         result = `Folder created: ${parameters.path}`;
         break;
       }
       case 'delete_folder': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = safeResolve(parameters.path);
         await rm(fullPath, { recursive: true, force: true });
         result = `Folder deleted: ${parameters.path}`;
         break;
       }
       case 'list_files': {
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = safeResolve(parameters.path || '.');
         const files = readdirSync(fullPath);
         result = JSON.stringify(files);
         break;
       }
       case 'search_files': {
         // Simple search - in real app would use glob
-        const fullPath = join(WORKSPACE_PATH, parameters.path);
+        const fullPath = safeResolve(parameters.path || '.');
         const files = readdirSync(fullPath).filter(f => f.includes(parameters.pattern));
         result = JSON.stringify(files);
         break;
       }
       default:
-        throw new Error('Tool not implemented');
+        throw new Error('Tool execution failed: unknown error');
     }
   } catch (e) {
     success = false;
@@ -1063,7 +1190,19 @@ function formatStatus(status) {
 // Initialize data
 seedData();
 
+// Add health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Start server
-app.listen(PORT, () => {
-  console.log(`AgentHQ Backend running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  const message = USE_AUTH
+    ? `AgentHQ Backend running securely at ${BASE_URL}`
+    : `AgentHQ Backend running at ${BASE_URL} (WARNING: No authentication configured)`;
+  console.log(message);
+  if (!USE_AUTH) {
+    console.log('To enable authentication, set the API_KEY environment variable.');
+    console.log('Example: API_KEY=your-secret-key npm start');
+  }
 });
