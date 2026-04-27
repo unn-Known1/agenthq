@@ -3,10 +3,22 @@ import { motion } from 'framer-motion';
 import { Bot, AlertTriangle, ChevronDown, User } from 'lucide-react';
 import { useStore } from '../stores/appStore';
 
+// Type definitions for window environment
+interface WindowEnv {
+  API_BASE_URL?: string;
+  [key: string]: unknown;
+}
+
+declare global {
+  interface Window {
+    ENV?: WindowEnv;
+  }
+}
+
 // Get API base URL from environment or default to current origin + default port
 const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
-    const envUrl = (window as any).ENV?.API_BASE_URL;
+    const envUrl = window.ENV?.API_BASE_URL;
     if (envUrl) return envUrl;
     // Use same origin with default backend port
     return `${window.location.protocol}//${window.location.hostname}:3001`;
