@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import { readFileSync, writeFileSync, readdirSync, readFile, writeFile, mkdir, rm, stat } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve, isAbsolute, normalize } from 'path';
@@ -18,6 +19,72 @@ const WORKSPACE_PATH = process.env.WORKSPACE_PATH || '/workspace';
 // Security: API Key authentication
 const API_KEY = process.env.API_KEY;
 const USE_AUTH = API_KEY ? true : false;
+
+// API Key encryption settings
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+const USE_ENCRYPTION = ENCRYPTION_KEY ? true : false;
+const ALGORITHM = 'aes-256-gcm';
+
+// Validate encryption key length (must be 32 bytes for AES-256)
+function getEncryptionKey() {
+  if (!ENCRYPTION_KEY) return null;
+  const key = Buffer.from(ENCRYPTION_KEY, 'hex');
+  if (key.length !== 32) {
+    console.error('Warning: ENCRYPTION_KEY must be 32 bytes (64 hex characters)');
+    return null;
+  }
+  return key;
+}
+
+// Encrypt API key
+function encryptApiKey(apiKey) {
+  if (!USE_ENCRYPTION || !apiKey) return apiKey;
+  const key = getEncryptionKey();
+  if (!key) return apiKey;
+
+  try {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+    let encrypted = cipher.update(apiKey, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag();
+    return `enc:${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+  } catch (err) {
+    console.error('Encryption failed:', err.message);
+    return apiKey;
+  }
+}
+
+// Decrypt API key
+function decryptApiKey(encryptedKey) {
+  if (!encryptedKey || !encryptedKey.startsWith('enc:')) return encryptedKey;
+  const key = getEncryptionKey();
+  if (!key) return encryptedKey;
+
+  try {
+    const parts = encryptedKey.split(':');
+    if (parts.length !== 4) return encryptedKey;
+
+    const iv = Buffer.from(parts[1], 'hex');
+    const authTag = Buffer.from(parts[2], 'hex');
+    const encrypted = parts[3];
+
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (err) {
+    console.error('Decryption failed:', err.message);
+    return encryptedKey;
+  }
+}
+
+// CORS configuration - secure defaults
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'];
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Request validation middleware
 app.use((req, res, next) => {
@@ -38,8 +105,31 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // In production, only allow configured origins
+    if (isProduction) {
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    }
+
+    // In development, allow localhost origins
+    const localhostPattern = /^http:\/\/(localhost|127\.0\.0\.1):[0-9]+$/;
+    if (localhostPattern.test(origin) || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Requested-With']
+}));
+app.use(express.json({ limit: '10mb' })); // Limit body size to prevent DoS
 
 // SSE clients for real-time updates
 const sseClients = new Set();
@@ -218,7 +308,12 @@ app.put('/api/company', (req, res) => {
 
 app.get('/api/agents', (req, res) => {
   const data = loadData();
-  res.json(data.agents || []);
+  // Return agents with decrypted API keys for authorized users
+  const agents = (data.agents || []).map(agent => ({
+    ...agent,
+    apiKey: agent.apiKey ? decryptApiKey(agent.apiKey) : null
+  }));
+  res.json(agents);
 });
 
 app.post('/api/agents', (req, res) => {
@@ -235,7 +330,7 @@ app.post('/api/agents', (req, res) => {
     provider: provider || 'claude',
     baseUrl: baseUrl || null,
     model: model || getDefaultModel(provider),
-    apiKey: apiKey || null,
+    apiKey: apiKey ? encryptApiKey(apiKey) : null, // Encrypt API key before storage
     systemPrompt: systemPrompt || `You are ${name || 'an agent'} working at this company.`,
     monthlyBudget: monthlyBudget || 500,
     currentSpend: 0,
@@ -286,7 +381,12 @@ app.put('/api/agents/:id', (req, res) => {
 
   allowedUpdates.forEach(field => {
     if (req.body[field] !== undefined) {
-      data.agents[index][field] = req.body[field];
+      // Encrypt API key when updating
+      if (field === 'apiKey' && req.body[field]) {
+        data.agents[index][field] = encryptApiKey(req.body[field]);
+      } else {
+        data.agents[index][field] = req.body[field];
+      }
     }
   });
 
@@ -1187,8 +1287,30 @@ function formatStatus(status) {
   return statuses[status] || status;
 }
 
+// Migrate existing API keys to encrypted format
+function migrateApiKeys() {
+  if (!USE_ENCRYPTION) return; // Skip migration if encryption not enabled
+
+  const data = loadData();
+  let migrated = false;
+
+  data.agents.forEach((agent, index) => {
+    if (agent.apiKey && !agent.apiKey.startsWith('enc:')) {
+      console.log(`Migrating API key for agent: ${agent.name}`);
+      data.agents[index].apiKey = encryptApiKey(agent.apiKey);
+      migrated = true;
+    }
+  });
+
+  if (migrated) {
+    saveData(data);
+    console.log('API keys encrypted successfully');
+  }
+}
+
 // Initialize data
 seedData();
+migrateApiKeys();
 
 // Add health check endpoint
 app.get('/health', (req, res) => {
