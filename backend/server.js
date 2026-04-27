@@ -1,23 +1,29 @@
 import express from 'express';
 import cors from 'cors';
-import { readFileSync, writeFileSync, readdirSync, readFile, writeFile, mkdir, rm, stat } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, readFile, writeFile, mkdir, rm, stat, rename } from 'fs';
+import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve, isAbsolute, normalize } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
+const renameFile = promisify(rename);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const HOST = process.env.HOST || '0.0.0.0';
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const HOST = process.env.HOST || '127.0.0.1';
+const BASE_URL = process.env.BASE_URL || `http://127.0.0.1:${PORT}`;
 const DATA_PATH = join(__dirname, 'data', 'store.json');
 const WORKSPACE_PATH = process.env.WORKSPACE_PATH || '/workspace';
 
 // Security: API Key authentication
 const API_KEY = process.env.API_KEY;
 const USE_AUTH = API_KEY ? true : false;
+
+// Security: CORS configuration
+const CORS_ORIGINS = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [];
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Request validation middleware
 app.use((req, res, next) => {
@@ -37,9 +43,52 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Configure CORS with security best practices
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // In production, only allow configured origins
+    if (isProduction) {
+      if (CORS_ORIGINS.length === 0) {
+        console.error('CORS ERROR: Production environment requires CORS_ORIGINS to be set');
+        return callback(new Error('CORS: No allowed origins configured for production'));
+      }
+      if (!CORS_ORIGINS.includes(origin)) {
+        console.error(`CORS ERROR: Origin ${origin} not in allowed list`);
+        return callback(new Error('CORS: Origin not allowed'));
+      }
+      return callback(null, true);
+    }
+
+    // In development, allow localhost variations for convenience
+    const localhostPatterns = [
+      'http://localhost',
+      'http://127.0.0.1',
+      'http://0.0.0.0'
+    ];
+    const isLocalhost = localhostPatterns.some(pattern => origin.startsWith(pattern));
+    if (isLocalhost) {
+      return callback(null, true);
+    }
+
+    // For development with configured origins, check the list
+    if (CORS_ORIGINS.length > 0 && CORS_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Deny by default in production-equivalent scenarios
+    callback(new Error('CORS: Origin not allowed'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  maxAge: 86400 // 24 hours
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10kb' }));
 
 // SSE clients for real-time updates
 const sseClients = new Set();
@@ -764,8 +813,12 @@ app.post('/api/tools/execute', async (req, res) => {
         if (!content.includes(parameters.old_string)) {
           throw new Error('Search string not found in file. Please verify the exact text to replace.');
         }
+        // Atomic file write to prevent race conditions
         const newContent = content.replace(parameters.old_string, parameters.new_string);
-        await writeFile(fullPath, newContent);
+        const tempPath = `${fullPath}.tmp.${Date.now()}`;
+        await writeFile(tempPath, newContent, 'utf-8');
+        await rm(fullPath, { force: true });
+        await renameFile(tempPath, fullPath);
         result = `File edited: ${parameters.path}`;
         break;
       }
