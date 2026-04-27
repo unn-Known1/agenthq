@@ -3,7 +3,7 @@ import cors from 'cors';
 import crypto from 'crypto';
 import { readFileSync, writeFileSync, readdirSync, readFile, writeFile, mkdir, rm, stat } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join, resolve } from 'path';
+import { dirname, join, resolve, isAbsolute, normalize } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 // API Key Encryption - AES-256-GCM
