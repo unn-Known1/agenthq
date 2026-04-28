@@ -92,6 +92,43 @@ app.use(express.json({ limit: '10kb' }));
 
 // SSE clients for real-time updates
 const sseClients = new Set();
+const SSE_HEARTBEAT_INTERVAL = 30000; // 30 seconds
+const SSE_CLEANUP_INTERVAL = 60000; // 60 seconds
+
+// Heartbeat mechanism to detect and clean up dead connections
+const sseHeartbeat = setInterval(() => {
+  const deadClients = [];
+  sseClients.forEach(client => {
+    try {
+      // Check if client is still writable
+      if (!client.write('event: ping\ndata: {}\n\n')) {
+        deadClients.push(client);
+      }
+    } catch (e) {
+      // Client is dead or errored
+      deadClients.push(client);
+    }
+  });
+  deadClients.forEach(client => sseClients.delete(client));
+  if (deadClients.length > 0) {
+    console.log(`SSE Cleanup: Removed ${deadClients.length} dead clients`);
+  }
+}, SSE_HEARTBEAT_INTERVAL);
+
+// Periodic cleanup of stale clients
+const sseCleanup = setInterval(() => {
+  const beforeCount = sseClients.size;
+  sseClients.forEach(client => {
+    // Additional health check - verify client hasn't become detached
+    if (!client.writable || client.destroyed) {
+      sseClients.delete(client);
+    }
+  });
+  const removed = beforeCount - sseClients.size;
+  if (removed > 0) {
+    console.log(`SSE Periodic Cleanup: Removed ${removed} stale clients`);
+  }
+}, SSE_CLEANUP_INTERVAL);
 
 // Load data from file
 function loadData() {
@@ -1247,6 +1284,15 @@ seedData();
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Graceful shutdown handling - clean up SSE intervals
+const cleanupIntervals = () => {
+  if (sseHeartbeat) clearInterval(sseHeartbeat);
+  if (sseCleanup) clearInterval(sseCleanup);
+  console.log('SSE intervals cleaned up');
+};
+process.on('SIGTERM', cleanupIntervals);
+process.on('SIGINT', cleanupIntervals);
 
 // Start server
 app.listen(PORT, HOST, () => {
