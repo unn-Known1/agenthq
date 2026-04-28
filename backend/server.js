@@ -225,6 +225,41 @@ function broadcast(event, payload) {
   });
 }
 
+// ============ INPUT SANITIZATION ============
+// CWE-79 (XSS): Prevent stored XSS attacks
+
+/**
+ * Sanitize user input to prevent XSS attacks
+ * Escapes HTML special characters
+ */
+function sanitizeInput(input) {
+  if (typeof input !== 'string') return input;
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+}
+
+/**
+ * Sanitize all string fields in an object
+ */
+function sanitizeObject(obj, allowedFields) {
+  const sanitized = {};
+  for (const field of allowedFields) {
+    if (obj[field] !== undefined) {
+      if (typeof obj[field] === 'string') {
+        sanitized[field] = sanitizeInput(obj[field]);
+      } else {
+        sanitized[field] = obj[field];
+      }
+    }
+  }
+  return sanitized;
+}
+
 // Add log entry
 function addLog(data, level, category, message, metadata = {}) {
   const log = {
@@ -314,23 +349,26 @@ app.post('/api/agents', (req, res) => {
     systemPrompt, monthlyBudget, parentId, canCreateAgents, canUseTools
   } = req.body;
 
+  // CWE-79: Sanitize user input to prevent XSS
+  const sanitized = sanitizeObject(req.body, ['name', 'role', 'provider', 'baseUrl', 'model', 'apiKey', 'systemPrompt', 'monthlyBudget', 'parentId', 'canCreateAgents', 'canUseTools']);
+
   const agent = {
-    id: `agent_${role || 'new'}_${uuidv4().slice(0, 6)}`,
-    name: name || 'New Agent',
-    role: role || 'engineer',
-    provider: provider || 'claude',
-    baseUrl: baseUrl || null,
-    model: model || getDefaultModel(provider),
-    apiKey: apiKey || null,
-    systemPrompt: systemPrompt || `You are ${name || 'an agent'} working at this company.`,
-    monthlyBudget: monthlyBudget || 500,
+    id: `agent_${sanitized.role || 'new'}_${uuidv4().slice(0, 6)}`,
+    name: sanitized.name || 'New Agent',
+    role: sanitized.role || 'engineer',
+    provider: sanitized.provider || 'claude',
+    baseUrl: sanitized.baseUrl || null,
+    model: sanitized.model || getDefaultModel(sanitized.provider),
+    apiKey: sanitized.apiKey || null,
+    systemPrompt: sanitized.systemPrompt || `You are ${sanitized.name || 'an agent'} working at this company.`,
+    monthlyBudget: sanitized.monthlyBudget || 500,
     currentSpend: 0,
     status: 'active',
-    parentId: parentId || null,
-    reportsTo: parentId || null,
+    parentId: sanitized.parentId || null,
+    reportsTo: sanitized.parentId || null,
     subordinates: [],
-    canCreateAgents: canCreateAgents ?? (role === 'ceo' || role === 'cto'),
-    canUseTools: canUseTools ?? (role === 'engineer'),
+    canCreateAgents: sanitized.canCreateAgents ?? (sanitized.role === 'ceo' || sanitized.role === 'cto'),
+    canUseTools: sanitized.canUseTools ?? (sanitized.role === 'engineer'),
     toolPermissions: ['read_file', 'write_file', 'list_files'],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -370,9 +408,12 @@ app.put('/api/agents/:id', (req, res) => {
     'canCreateAgents', 'canUseTools', 'toolPermissions'
   ];
 
+  // CWE-79: Sanitize user input to prevent XSS
+  const sanitized = sanitizeObject(req.body, allowedUpdates);
+
   allowedUpdates.forEach(field => {
-    if (req.body[field] !== undefined) {
-      data.agents[index][field] = req.body[field];
+    if (sanitized[field] !== undefined) {
+      data.agents[index][field] = sanitized[field];
     }
   });
 
@@ -443,16 +484,20 @@ app.post('/api/tickets', (req, res) => {
   const { title, description, priority, assigneeId, budgetAllocated, createdBy, parentTaskId } = req.body;
 
   data.ticketCounter++;
+
+  // CWE-79: Sanitize user input to prevent XSS
+  const sanitized = sanitizeObject(req.body, ['title', 'description', 'priority', 'assigneeId', 'budgetAllocated', 'createdBy', 'parentTaskId']);
+
   const ticket = {
     id: `TKT-${String(data.ticketCounter).padStart(4, '0')}`,
-    title: title || 'Untitled Task',
-    description: description || '',
-    priority: priority || 'medium',
+    title: sanitized.title || 'Untitled Task',
+    description: sanitized.description || '',
+    priority: sanitized.priority || 'medium',
     status: 'backlog',
-    assigneeId: assigneeId || null,
-    createdBy: createdBy || null,
-    parentTaskId: parentTaskId || null,
-    budgetAllocated: budgetAllocated || 0,
+    assigneeId: sanitized.assigneeId || null,
+    createdBy: sanitized.createdBy || null,
+    parentTaskId: sanitized.parentTaskId || null,
+    budgetAllocated: sanitized.budgetAllocated || 0,
     budgetConsumed: 0,
     subtasks: [],
     toolExecutions: [],
@@ -484,9 +529,12 @@ app.put('/api/tickets/:id', (req, res) => {
   const allowedUpdates = ['title', 'description', 'priority', 'status', 'assigneeId', 'budgetAllocated', 'budgetConsumed'];
   const oldStatus = data.tickets[index].status;
 
+  // CWE-79: Sanitize user input to prevent XSS
+  const sanitized = sanitizeObject(req.body, allowedUpdates);
+
   allowedUpdates.forEach(field => {
-    if (req.body[field] !== undefined) {
-      data.tickets[index][field] = req.body[field];
+    if (sanitized[field] !== undefined) {
+      data.tickets[index][field] = sanitized[field];
     }
   });
 
