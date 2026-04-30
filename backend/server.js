@@ -17,31 +17,102 @@ const BASE_URL = process.env.BASE_URL || `http://127.0.0.1:${PORT}`;
 const DATA_PATH = join(__dirname, 'data', 'store.json');
 const WORKSPACE_PATH = process.env.WORKSPACE_PATH || '/workspace';
 
-// Security: API Key authentication
+// Security: API Key authentication (MANDATORY)
+// In production, API_KEY must be set - access is denied without it
 const API_KEY = process.env.API_KEY;
-const USE_AUTH = API_KEY ? true : false;
+const isProduction = process.env.NODE_ENV === 'production';
+const USE_AUTH = true; // Authentication is always enabled
+
+// Block server startup in production if API_KEY is not configured
+if (isProduction && !API_KEY) {
+  console.error('FATAL: API_KEY environment variable is required in production mode.');
+  console.error('Server cannot start without authentication. Please set API_KEY and restart.');
+  process.exit(1);
+}
 
 // Security: CORS configuration
 const CORS_ORIGINS = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [];
-const isProduction = process.env.NODE_ENV === 'production';
+
+// Security: Rate limiting configuration
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute window
+const RATE_LIMIT_MAX_REQUESTS = 100; // Max requests per window per IP
+const rateLimitMap = new Map();
+
+function getClientId(req) {
+  // Use API key if available, otherwise fall back to IP
+  return req.headers['x-api-key'] || req.ip || 'unknown';
+}
+
+function checkRateLimit(req, res, next) {
+  const clientId = getClientId(req);
+  const now = Date.now();
+
+  if (!rateLimitMap.has(clientId)) {
+    rateLimitMap.set(clientId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return next();
+  }
+
+  const clientData = rateLimitMap.get(clientId);
+
+  // Reset if window has expired
+  if (now > clientData.resetTime) {
+    clientData.count = 1;
+    clientData.resetTime = now + RATE_LIMIT_WINDOW;
+    return next();
+  }
+
+  // Check if limit exceeded
+  if (clientData.count >= RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((clientData.resetTime - now) / 1000);
+    res.set('Retry-After', String(retryAfter));
+    return res.status(429).json({
+      error: 'Too Many Requests',
+      message: `Rate limit exceeded. Maximum ${RATE_LIMIT_MAX_REQUESTS} requests per minute.`,
+      retryAfter
+    });
+  }
+
+  clientData.count++;
+  next();
+}
+
+// Clean up expired rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, data] of rateLimitMap.entries()) {
+    if (now > data.resetTime + RATE_LIMIT_WINDOW) {
+      rateLimitMap.delete(key);
+    }
+  }
+}, RATE_LIMIT_WINDOW);
 
 // Request validation middleware
 app.use((req, res, next) => {
   // Skip auth for health check
   if (req.path === '/health') return next();
 
-  // Validate API key if enabled
-  if (USE_AUTH) {
-    const providedKey = req.headers['x-api-key'];
-    if (!providedKey || providedKey !== API_KEY) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid or missing API key. Please provide a valid X-API-Key header.'
-      });
-    }
+  // Block all requests if no API_KEY is configured (critical security)
+  if (!API_KEY) {
+    console.error('SECURITY ALERT: Request blocked - no API_KEY configured');
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Server authentication is not configured. Please set API_KEY environment variable.'
+    });
+  }
+
+  // Validate API key
+  const providedKey = req.headers['x-api-key'];
+  if (!providedKey || providedKey !== API_KEY) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid or missing API key. Please provide a valid X-API-Key header.'
+    });
   }
   next();
 });
+
+// Apply rate limiting to all API requests (after auth)
+app.use('/api', checkRateLimit);
 
 // Configure CORS with security best practices
 const corsOptions = {
@@ -91,7 +162,83 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10kb' }));
 
 // SSE clients for real-time updates
-const sseClients = new Set();
+const sseClients = new Map(); // Use Map to track client metadata including connection time
+const SSE_HEARTBEAT_INTERVAL = 30000; // 30 seconds
+const SSE_CLEANUP_INTERVAL = 60000; // 60 seconds
+const SSE_CLIENT_TIMEOUT = 300000; // 5 minutes - clients without heartbeat will be removed
+
+// Heartbeat mechanism to detect and clean up dead connections
+const sseHeartbeat = setInterval(() => {
+  const deadClients = [];
+  const now = Date.now();
+
+  sseClients.forEach((metadata, client) => {
+    try {
+      // Check if client is still writable
+      if (!client.write('event: ping\ndata: {}\n\n')) {
+        deadClients.push(client);
+      } else {
+        // Update last heartbeat time
+        metadata.lastHeartbeat = now;
+      }
+    } catch (e) {
+      // Client is dead or errored
+      deadClients.push(client);
+    }
+  });
+  deadClients.forEach(client => {
+    sseClients.delete(client);
+    console.log('SSE: Removed dead client');
+  });
+  if (deadClients.length > 0) {
+    console.log(`SSE Cleanup: Removed ${deadClients.length} dead clients`);
+  }
+}, SSE_HEARTBEAT_INTERVAL);
+
+// Periodic cleanup of stale clients (timeout-based)
+const sseCleanup = setInterval(() => {
+  const beforeCount = sseClients.size;
+  const now = Date.now();
+
+  sseClients.forEach((metadata, client) => {
+    // Remove clients that haven't had a heartbeat within the timeout period
+    if (!client.writable || client.destroyed || (now - metadata.lastHeartbeat > SSE_CLIENT_TIMEOUT)) {
+      sseClients.delete(client);
+      console.log('SSE: Removed stale client (timeout or destroyed)');
+    }
+  });
+  const removed = beforeCount - sseClients.size;
+  if (removed > 0) {
+    console.log(`SSE Periodic Cleanup: Removed ${removed} stale clients`);
+  }
+}, SSE_CLEANUP_INTERVAL);
+
+// SSE endpoint with proper cleanup
+function setupSSEClient(res) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering if present
+
+  res.write('event: connected\ndata: {}\n\n');
+
+  // Store client with metadata (connection time, last heartbeat)
+  sseClients.set(res, {
+    connectedAt: Date.now(),
+    lastHeartbeat: Date.now()
+  });
+
+  // Handle client disconnect
+  res.on('close', () => {
+    sseClients.delete(res);
+    console.log('SSE: Client disconnected');
+  });
+
+  res.on('error', () => {
+    sseClients.delete(res);
+    console.log('SSE: Client error');
+  });
+}
 
 // Load data from file
 function loadData() {
@@ -188,6 +335,41 @@ function broadcast(event, payload) {
   });
 }
 
+// ============ INPUT SANITIZATION ============
+// CWE-79 (XSS): Prevent stored XSS attacks
+
+/**
+ * Sanitize user input to prevent XSS attacks
+ * Escapes HTML special characters
+ */
+function sanitizeInput(input) {
+  if (typeof input !== 'string') return input;
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+}
+
+/**
+ * Sanitize all string fields in an object
+ */
+function sanitizeObject(obj, allowedFields) {
+  const sanitized = {};
+  for (const field of allowedFields) {
+    if (obj[field] !== undefined) {
+      if (typeof obj[field] === 'string') {
+        sanitized[field] = sanitizeInput(obj[field]);
+      } else {
+        sanitized[field] = obj[field];
+      }
+    }
+  }
+  return sanitized;
+}
+
 // Add log entry
 function addLog(data, level, category, message, metadata = {}) {
   const log = {
@@ -277,23 +459,26 @@ app.post('/api/agents', (req, res) => {
     systemPrompt, monthlyBudget, parentId, canCreateAgents, canUseTools
   } = req.body;
 
+  // CWE-79: Sanitize user input to prevent XSS
+  const sanitized = sanitizeObject(req.body, ['name', 'role', 'provider', 'baseUrl', 'model', 'apiKey', 'systemPrompt', 'monthlyBudget', 'parentId', 'canCreateAgents', 'canUseTools']);
+
   const agent = {
-    id: `agent_${role || 'new'}_${uuidv4().slice(0, 6)}`,
-    name: name || 'New Agent',
-    role: role || 'engineer',
-    provider: provider || 'claude',
-    baseUrl: baseUrl || null,
-    model: model || getDefaultModel(provider),
-    apiKey: apiKey || null,
-    systemPrompt: systemPrompt || `You are ${name || 'an agent'} working at this company.`,
-    monthlyBudget: monthlyBudget || 500,
+    id: `agent_${sanitized.role || 'new'}_${uuidv4().slice(0, 6)}`,
+    name: sanitized.name || 'New Agent',
+    role: sanitized.role || 'engineer',
+    provider: sanitized.provider || 'claude',
+    baseUrl: sanitized.baseUrl || null,
+    model: sanitized.model || getDefaultModel(sanitized.provider),
+    apiKey: sanitized.apiKey || null,
+    systemPrompt: sanitized.systemPrompt || `You are ${sanitized.name || 'an agent'} working at this company.`,
+    monthlyBudget: sanitized.monthlyBudget || 500,
     currentSpend: 0,
     status: 'active',
-    parentId: parentId || null,
-    reportsTo: parentId || null,
+    parentId: sanitized.parentId || null,
+    reportsTo: sanitized.parentId || null,
     subordinates: [],
-    canCreateAgents: canCreateAgents ?? (role === 'ceo' || role === 'cto'),
-    canUseTools: canUseTools ?? (role === 'engineer'),
+    canCreateAgents: sanitized.canCreateAgents ?? (sanitized.role === 'ceo' || sanitized.role === 'cto'),
+    canUseTools: sanitized.canUseTools ?? (sanitized.role === 'engineer'),
     toolPermissions: ['read_file', 'write_file', 'list_files'],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -333,9 +518,12 @@ app.put('/api/agents/:id', (req, res) => {
     'canCreateAgents', 'canUseTools', 'toolPermissions'
   ];
 
+  // CWE-79: Sanitize user input to prevent XSS
+  const sanitized = sanitizeObject(req.body, allowedUpdates);
+
   allowedUpdates.forEach(field => {
-    if (req.body[field] !== undefined) {
-      data.agents[index][field] = req.body[field];
+    if (sanitized[field] !== undefined) {
+      data.agents[index][field] = sanitized[field];
     }
   });
 
@@ -406,16 +594,20 @@ app.post('/api/tickets', (req, res) => {
   const { title, description, priority, assigneeId, budgetAllocated, createdBy, parentTaskId } = req.body;
 
   data.ticketCounter++;
+
+  // CWE-79: Sanitize user input to prevent XSS
+  const sanitized = sanitizeObject(req.body, ['title', 'description', 'priority', 'assigneeId', 'budgetAllocated', 'createdBy', 'parentTaskId']);
+
   const ticket = {
     id: `TKT-${String(data.ticketCounter).padStart(4, '0')}`,
-    title: title || 'Untitled Task',
-    description: description || '',
-    priority: priority || 'medium',
+    title: sanitized.title || 'Untitled Task',
+    description: sanitized.description || '',
+    priority: sanitized.priority || 'medium',
     status: 'backlog',
-    assigneeId: assigneeId || null,
-    createdBy: createdBy || null,
-    parentTaskId: parentTaskId || null,
-    budgetAllocated: budgetAllocated || 0,
+    assigneeId: sanitized.assigneeId || null,
+    createdBy: sanitized.createdBy || null,
+    parentTaskId: sanitized.parentTaskId || null,
+    budgetAllocated: sanitized.budgetAllocated || 0,
     budgetConsumed: 0,
     subtasks: [],
     toolExecutions: [],
@@ -447,9 +639,12 @@ app.put('/api/tickets/:id', (req, res) => {
   const allowedUpdates = ['title', 'description', 'priority', 'status', 'assigneeId', 'budgetAllocated', 'budgetConsumed'];
   const oldStatus = data.tickets[index].status;
 
+  // CWE-79: Sanitize user input to prevent XSS
+  const sanitized = sanitizeObject(req.body, allowedUpdates);
+
   allowedUpdates.forEach(field => {
-    if (req.body[field] !== undefined) {
-      data.tickets[index][field] = req.body[field];
+    if (sanitized[field] !== undefined) {
+      data.tickets[index][field] = sanitized[field];
     }
   });
 
@@ -598,14 +793,11 @@ app.get('/api/logs', (req, res) => {
 });
 
 app.get('/api/logs/stream', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
+  setupSSEClient(res);
+});
 
-  res.write('event: connected\ndata: {}\n\n');
-  sseClients.add(res);
-
-  req.on('close', () => sseClients.delete(res));
+app.get('/api/activities/stream', (req, res) => {
+  setupSSEClient(res);
 });
 
 // ============ REPORTS ROUTES ============
@@ -923,14 +1115,7 @@ app.get('/api/activities', (req, res) => {
 });
 
 app.get('/api/activities/stream', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-
-  res.write('event: connected\ndata: {}\n\n');
-  sseClients.add(res);
-
-  req.on('close', () => sseClients.delete(res));
+  setupSSEClient(res);
 });
 
 // ============ HISTORY ROUTES ============
@@ -1248,14 +1433,24 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Graceful shutdown handling - clean up SSE intervals
+const cleanupIntervals = () => {
+  if (sseHeartbeat) clearInterval(sseHeartbeat);
+  if (sseCleanup) clearInterval(sseCleanup);
+  console.log('SSE intervals cleaned up');
+};
+process.on('SIGTERM', cleanupIntervals);
+process.on('SIGINT', cleanupIntervals);
+
 // Start server
 app.listen(PORT, HOST, () => {
-  const message = USE_AUTH
-    ? `AgentHQ Backend running securely at ${BASE_URL}`
-    : `AgentHQ Backend running at ${BASE_URL} (WARNING: No authentication configured)`;
+  const message = API_KEY
+    ? `AgentHQ Backend running securely at ${BASE_URL} with mandatory authentication`
+    : `AgentHQ Backend running at ${BASE_URL} (WARNING: Authentication required but no API_KEY set)`;
   console.log(message);
-  if (!USE_AUTH) {
-    console.log('To enable authentication, set the API_KEY environment variable.');
+  if (!API_KEY) {
+    console.log('WARNING: API_KEY is not configured. Server will deny all requests.');
+    console.log('To enable access, set the API_KEY environment variable.');
     console.log('Example: API_KEY=your-secret-key npm start');
   }
 });
