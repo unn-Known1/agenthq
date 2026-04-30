@@ -17,31 +17,102 @@ const BASE_URL = process.env.BASE_URL || `http://127.0.0.1:${PORT}`;
 const DATA_PATH = join(__dirname, 'data', 'store.json');
 const WORKSPACE_PATH = process.env.WORKSPACE_PATH || '/workspace';
 
-// Security: API Key authentication
+// Security: API Key authentication (MANDATORY)
+// In production, API_KEY must be set - access is denied without it
 const API_KEY = process.env.API_KEY;
-const USE_AUTH = API_KEY ? true : false;
+const isProduction = process.env.NODE_ENV === 'production';
+const USE_AUTH = true; // Authentication is always enabled
+
+// Block server startup in production if API_KEY is not configured
+if (isProduction && !API_KEY) {
+  console.error('FATAL: API_KEY environment variable is required in production mode.');
+  console.error('Server cannot start without authentication. Please set API_KEY and restart.');
+  process.exit(1);
+}
 
 // Security: CORS configuration
 const CORS_ORIGINS = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [];
-const isProduction = process.env.NODE_ENV === 'production';
+
+// Security: Rate limiting configuration
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute window
+const RATE_LIMIT_MAX_REQUESTS = 100; // Max requests per window per IP
+const rateLimitMap = new Map();
+
+function getClientId(req) {
+  // Use API key if available, otherwise fall back to IP
+  return req.headers['x-api-key'] || req.ip || 'unknown';
+}
+
+function checkRateLimit(req, res, next) {
+  const clientId = getClientId(req);
+  const now = Date.now();
+
+  if (!rateLimitMap.has(clientId)) {
+    rateLimitMap.set(clientId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return next();
+  }
+
+  const clientData = rateLimitMap.get(clientId);
+
+  // Reset if window has expired
+  if (now > clientData.resetTime) {
+    clientData.count = 1;
+    clientData.resetTime = now + RATE_LIMIT_WINDOW;
+    return next();
+  }
+
+  // Check if limit exceeded
+  if (clientData.count >= RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((clientData.resetTime - now) / 1000);
+    res.set('Retry-After', String(retryAfter));
+    return res.status(429).json({
+      error: 'Too Many Requests',
+      message: `Rate limit exceeded. Maximum ${RATE_LIMIT_MAX_REQUESTS} requests per minute.`,
+      retryAfter
+    });
+  }
+
+  clientData.count++;
+  next();
+}
+
+// Clean up expired rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, data] of rateLimitMap.entries()) {
+    if (now > data.resetTime + RATE_LIMIT_WINDOW) {
+      rateLimitMap.delete(key);
+    }
+  }
+}, RATE_LIMIT_WINDOW);
 
 // Request validation middleware
 app.use((req, res, next) => {
   // Skip auth for health check
   if (req.path === '/health') return next();
 
-  // Validate API key if enabled
-  if (USE_AUTH) {
-    const providedKey = req.headers['x-api-key'];
-    if (!providedKey || providedKey !== API_KEY) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid or missing API key. Please provide a valid X-API-Key header.'
-      });
-    }
+  // Block all requests if no API_KEY is configured (critical security)
+  if (!API_KEY) {
+    console.error('SECURITY ALERT: Request blocked - no API_KEY configured');
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Server authentication is not configured. Please set API_KEY environment variable.'
+    });
+  }
+
+  // Validate API key
+  const providedKey = req.headers['x-api-key'];
+  if (!providedKey || providedKey !== API_KEY) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid or missing API key. Please provide a valid X-API-Key header.'
+    });
   }
   next();
 });
+
+// Apply rate limiting to all API requests (after auth)
+app.use('/api', checkRateLimit);
 
 // Configure CORS with security best practices
 const corsOptions = {
@@ -91,37 +162,49 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10kb' }));
 
 // SSE clients for real-time updates
-const sseClients = new Set();
+const sseClients = new Map(); // Use Map to track client metadata including connection time
 const SSE_HEARTBEAT_INTERVAL = 30000; // 30 seconds
 const SSE_CLEANUP_INTERVAL = 60000; // 60 seconds
+const SSE_CLIENT_TIMEOUT = 300000; // 5 minutes - clients without heartbeat will be removed
 
 // Heartbeat mechanism to detect and clean up dead connections
 const sseHeartbeat = setInterval(() => {
   const deadClients = [];
-  sseClients.forEach(client => {
+  const now = Date.now();
+
+  sseClients.forEach((metadata, client) => {
     try {
       // Check if client is still writable
       if (!client.write('event: ping\ndata: {}\n\n')) {
         deadClients.push(client);
+      } else {
+        // Update last heartbeat time
+        metadata.lastHeartbeat = now;
       }
     } catch (e) {
       // Client is dead or errored
       deadClients.push(client);
     }
   });
-  deadClients.forEach(client => sseClients.delete(client));
+  deadClients.forEach(client => {
+    sseClients.delete(client);
+    console.log('SSE: Removed dead client');
+  });
   if (deadClients.length > 0) {
     console.log(`SSE Cleanup: Removed ${deadClients.length} dead clients`);
   }
 }, SSE_HEARTBEAT_INTERVAL);
 
-// Periodic cleanup of stale clients
+// Periodic cleanup of stale clients (timeout-based)
 const sseCleanup = setInterval(() => {
   const beforeCount = sseClients.size;
-  sseClients.forEach(client => {
-    // Additional health check - verify client hasn't become detached
-    if (!client.writable || client.destroyed) {
+  const now = Date.now();
+
+  sseClients.forEach((metadata, client) => {
+    // Remove clients that haven't had a heartbeat within the timeout period
+    if (!client.writable || client.destroyed || (now - metadata.lastHeartbeat > SSE_CLIENT_TIMEOUT)) {
       sseClients.delete(client);
+      console.log('SSE: Removed stale client (timeout or destroyed)');
     }
   });
   const removed = beforeCount - sseClients.size;
@@ -129,6 +212,33 @@ const sseCleanup = setInterval(() => {
     console.log(`SSE Periodic Cleanup: Removed ${removed} stale clients`);
   }
 }, SSE_CLEANUP_INTERVAL);
+
+// SSE endpoint with proper cleanup
+function setupSSEClient(res) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering if present
+
+  res.write('event: connected\ndata: {}\n\n');
+
+  // Store client with metadata (connection time, last heartbeat)
+  sseClients.set(res, {
+    connectedAt: Date.now(),
+    lastHeartbeat: Date.now()
+  });
+
+  // Handle client disconnect
+  res.on('close', () => {
+    sseClients.delete(res);
+    console.log('SSE: Client disconnected');
+  });
+
+  res.on('error', () => {
+    sseClients.delete(res);
+    console.log('SSE: Client error');
+  });
+}
 
 // Load data from file
 function loadData() {
@@ -683,14 +793,11 @@ app.get('/api/logs', (req, res) => {
 });
 
 app.get('/api/logs/stream', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
+  setupSSEClient(res);
+});
 
-  res.write('event: connected\ndata: {}\n\n');
-  sseClients.add(res);
-
-  req.on('close', () => sseClients.delete(res));
+app.get('/api/activities/stream', (req, res) => {
+  setupSSEClient(res);
 });
 
 // ============ REPORTS ROUTES ============
@@ -1008,14 +1115,7 @@ app.get('/api/activities', (req, res) => {
 });
 
 app.get('/api/activities/stream', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-
-  res.write('event: connected\ndata: {}\n\n');
-  sseClients.add(res);
-
-  req.on('close', () => sseClients.delete(res));
+  setupSSEClient(res);
 });
 
 // ============ HISTORY ROUTES ============
@@ -1344,12 +1444,13 @@ process.on('SIGINT', cleanupIntervals);
 
 // Start server
 app.listen(PORT, HOST, () => {
-  const message = USE_AUTH
-    ? `AgentHQ Backend running securely at ${BASE_URL}`
-    : `AgentHQ Backend running at ${BASE_URL} (WARNING: No authentication configured)`;
+  const message = API_KEY
+    ? `AgentHQ Backend running securely at ${BASE_URL} with mandatory authentication`
+    : `AgentHQ Backend running at ${BASE_URL} (WARNING: Authentication required but no API_KEY set)`;
   console.log(message);
-  if (!USE_AUTH) {
-    console.log('To enable authentication, set the API_KEY environment variable.');
+  if (!API_KEY) {
+    console.log('WARNING: API_KEY is not configured. Server will deny all requests.');
+    console.log('To enable access, set the API_KEY environment variable.');
     console.log('Example: API_KEY=your-secret-key npm start');
   }
 });

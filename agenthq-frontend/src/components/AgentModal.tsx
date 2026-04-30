@@ -78,7 +78,8 @@ export default function AgentModal({ onClose }: AgentModalProps) {
     setError('');
 
     try {
-      await createAgent({
+      // Clear sensitive data from form state immediately after submission
+      const agentData = {
         name: formData.name,
         role: formData.role,
         provider: formData.provider,
@@ -88,7 +89,15 @@ export default function AgentModal({ onClose }: AgentModalProps) {
         systemPrompt: formData.systemPrompt || `You are ${formData.name}, working as ${formData.role} at this company.`,
         monthlyBudget: formData.monthlyBudget,
         parentId: formData.parentId,
-      });
+      };
+
+      await createAgent(agentData);
+
+      // Securely clear API key from memory after submission
+      if (formData.provider === 'custom' && formData.apiKey) {
+        setFormData(prev => ({ ...prev, apiKey: '' }));
+      }
+
       onClose();
     } catch {
       setError('Failed to create agent');
