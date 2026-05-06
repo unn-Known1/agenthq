@@ -424,17 +424,20 @@ app.put('/api/company', (req, res) => {
   const data = loadData();
   const { name, mission, theme } = req.body;
 
+  // CWE-79: Sanitize user input to prevent XSS
+  const sanitized = sanitizeObject(req.body, ['name', 'mission', 'theme']);
+
   if (data.company) {
-    if (name !== undefined) data.company.name = name;
-    if (mission !== undefined) data.company.mission = mission;
-    if (theme !== undefined) data.company.theme = theme;
+    if (sanitized.name !== undefined) data.company.name = sanitized.name;
+    if (sanitized.mission !== undefined) data.company.mission = sanitized.mission;
+    if (sanitized.theme !== undefined) data.company.theme = sanitized.theme;
     data.company.updatedAt = new Date().toISOString();
   } else {
     data.company = {
       id: `comp_${uuidv4().slice(0, 8)}`,
-      name: name || 'AgentHQ',
-      mission: mission || '',
-      theme: theme || 'dark',
+      name: sanitized.name || 'AgentHQ',
+      mission: sanitized.mission || '',
+      theme: sanitized.theme || 'dark',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -771,7 +774,7 @@ app.post('/api/conversations/:id/messages', (req, res) => {
   conversation.lastMessageAt = new Date().toISOString();
 
   const sender = data.agents.find(a => a.id === senderId);
-  addLog(data, 'info', 'conversation', `${sender?.name || 'Unknown'} sent message in ${subject || req.params.id}`, { conversationId: req.params.id, agentId: senderId });
+  addLog(data, 'info', 'conversation', `${sender?.name || 'Unknown'} sent message in ${conversation.subject || req.params.id}`, { conversationId: req.params.id, agentId: senderId });
   saveData(data);
 
   res.status(201).json(message);
