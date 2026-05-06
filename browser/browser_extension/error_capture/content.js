@@ -109,10 +109,14 @@
     window.__original_console_log__ = console.log;
   }
 
-  // 监听来自injector.js的消息
+  // 监听来自injector.js的消息 - 严格验证来源 (CWE-346)
   window.addEventListener('message', function (event) {
     // 确保消息来源安全且类型正确
     if (event.source === window && event.data) {
+      // Validate origin to prevent postMessage spoofing
+      if (event.origin !== window.location.origin && !event.origin.startsWith('https://') && !event.origin.startsWith('http://localhost')) {
+        return; // Reject messages from unauthorized origins
+      }
       if (event.data.type === 'MATRIX_ERROR_LOG') {
         safeLogError(event.data.data);
       } else if (event.data.type === 'MATRIX_API_SUCCESS_LOG') {

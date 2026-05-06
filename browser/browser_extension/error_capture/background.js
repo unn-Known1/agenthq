@@ -68,9 +68,9 @@ chrome.webRequest.onSendHeaders.addListener(
       if (details.requestHeaders) {
         details.requestHeaders.forEach(header => {
           const name = header.name.toLowerCase();
-          // 对敏感header特殊处理
+          // Mask sensitive headers completely (CWE-798)
           if (name === 'authorization' || name === 'apikey') {
-            headers[name] = header.value.substring(0, 20) + '***';
+            headers[name] = '[REDACTED]';
           } else {
             headers[name] = header.value;
           }
